@@ -1,4 +1,4 @@
-#define DEBUG
+//#define DEBUG
 using System;
 using System.Collections;
 using System.Collections.Generic;
@@ -16,8 +16,8 @@ using Oxide.Core.Libraries.Covalence;
 
 namespace Oxide.Plugins
 {
-    [Info("ElectroLock", "RFC1920", "1.0.3")]
-    [Description("Lock electrical switches")]
+    [Info("ElectroLock", "RFC1920", "1.0.4")]
+    [Description("Lock electrical switches with a code lock")]
     class ElectroLock : RustPlugin
     {
         #region vars
@@ -29,6 +29,8 @@ namespace Oxide.Plugins
         public Dictionary<ulong,bool> userenabled = new Dictionary<ulong,bool>();
         public Dictionary<int,SwitchPair> switchpairs = new Dictionary<int,SwitchPair>();
         public List<ulong> switches = new List<ulong>();
+        private const string permElectrolockUse = "electrolock.use";
+        private const string permElectrolockAdmin = "electrolock.admin";
 
         public class SwitchPair
         {
@@ -39,6 +41,9 @@ namespace Oxide.Plugins
         #endregion
 
         #region Message
+        private string Lang(string key, string id = null, params object[] args) => string.Format(lang.GetMessage(key, this, id), args);
+        private void Message(IPlayer player, string key, params object[] args) => player.Reply(Lang(key, player.Id, args));
+
         private string _(string msgId, BasePlayer player, params object[] args)
         {
             var msg = lang.GetMessage(msgId, this, player?.UserIDString);
@@ -63,9 +68,14 @@ namespace Oxide.Plugins
         {
             AddCovalenceCommand("el", "cmdElectroLock");
 
-            permission.RegisterPermission("electrolock.use", this);
-            permission.RegisterPermission("electrolock.admin", this);
+            permission.RegisterPermission(permElectrolockUse, this);
+            permission.RegisterPermission(permElectrolockAdmin, this);
 
+            LoadData();
+        }
+
+        protected override void LoadDefaultMessages()
+        {
             lang.RegisterMessages(new Dictionary<string, string>
             {
                 ["cannotdo"] = "You cannot remove a lock which is part of a switch pair.",
@@ -80,11 +90,6 @@ namespace Oxide.Plugins
             }, this);
         }
 
-        void Loaded()
-        {
-            LoadData();
-        }
-
         void Unload()
         {
             SaveData();
@@ -92,8 +97,8 @@ namespace Oxide.Plugins
 
         private void LoadData()
         {
-            userenabled = Interface.GetMod().DataFileSystem.ReadObject<Dictionary<ulong, bool>>(this.Title + "/electrolock_user");
-            switchpairs = Interface.GetMod().DataFileSystem.ReadObject<Dictionary<int, SwitchPair>>(this.Title + "/electrolock_data");
+            userenabled = Interface.Oxide.DataFileSystem.ReadObject<Dictionary<ulong, bool>>(Name + "/electrolock_user");
+            switchpairs = Interface.Oxide.DataFileSystem.ReadObject<Dictionary<int, SwitchPair>>(Name + "/electrolock_data");
             foreach(KeyValuePair<int, SwitchPair> switchdata in switchpairs)
             {
                 switches.Add(switchdata.Value.switchid);
@@ -102,33 +107,30 @@ namespace Oxide.Plugins
 
         private void SaveData()
         {
-            Interface.Oxide.DataFileSystem.WriteObject(this.Title + "/electrolock_user", userenabled);
-            Interface.Oxide.DataFileSystem.WriteObject(this.Title + "/electrolock_data", switchpairs);
+            Interface.Oxide.DataFileSystem.WriteObject(Name + "/electrolock_user", userenabled);
+            Interface.Oxide.DataFileSystem.WriteObject(Name + "/electrolock_data", switchpairs);
         }
         #endregion
 
         #region Rust_Hooks
-        private void OnEntitySpawned(BaseNetworkable networkObject)
+        private void OnEntitySpawned(ElectricSwitch eswitch)
         {
-            ElectricSwitch eswitch = networkObject.GetComponent<ElectricSwitch>();
-
-            if(eswitch)
+            if(eswitch != null)
             {
                 BasePlayer player = new BasePlayer();
                 try
                 {
                     player = FindOwner(eswitch.OwnerID) as BasePlayer;
                 }
-                catch {}
-
-                if(player == null)
+                catch
                 {
 #if DEBUG
                     Puts($"Could not find owner of this switch.");
 #endif
                     return;
                 }
-                if(!isAllowed(player, "electrolock.use"))
+
+                if(!player.IPlayer.HasPermission(permElectrolockUse))
                 {
 #if DEBUG
                     Puts($"Player {player.displayName} denied permission.");
@@ -171,6 +173,9 @@ namespace Oxide.Plugins
 
         private object OnSwitchToggle(ElectricSwitch eswitch, BasePlayer player)
         {
+            if(eswitch == null) return null;
+            if(player == null) return null;
+
             if(switches.Contains(eswitch.net.ID))
             {
 #if DEBUG
@@ -186,17 +191,21 @@ namespace Oxide.Plugins
         }
 
         // Check for our switch, currently only log
-        private object CanPickupEntity(BasePlayer player, BaseCombatEntity entity)
+        private object CanPickupEntity(BasePlayer player, BaseEntity myent)
         {
-            if(entity == null || player == null) return null;
-
-            BaseEntity myent = entity as BaseEntity;
+            if(myent == null) return null;
+            if(player == null) return null;
 
             if(myent.name.Contains("switch") && IsOurSwitch(myent.net.ID))
             {
+                if(IsLocked(myent.net.ID))
+                {
 #if DEBUG
-                Puts("CanPickupEntity: player trying to pickup our locked switch!");
+                    Puts("CanPickupEntity: player trying to pickup our locked switch!");
 #endif
+                    PrintMsgL(player, "locked");
+                    return false;
+                }
             }
             return null;
         }
@@ -207,15 +216,10 @@ namespace Oxide.Plugins
             if(baseLock == null) return null;
             if(player == null) return null;
 
-            BaseEntity myent = baseLock as BaseEntity;
-            BaseEntity myparent = null;
-            try
-            {
-                myparent = myent.GetParentEntity();
-            }
-            catch {}
+            BaseEntity eswitch = baseLock.GetParentEntity();
+            if(eswitch == null) return null;
 
-            if(myparent.name.Contains("switch") && IsOurSwitch(myparent.net.ID))
+            if(eswitch.name.Contains("switch") && IsOurSwitch(eswitch.net.ID))
             {
 #if DEBUG
                 Puts("CanPickupLock: player trying to remove lock from a locked switch!");
@@ -235,55 +239,52 @@ namespace Oxide.Plugins
         #endregion
 
         #region Main
-        bool isAllowed(BasePlayer player, string perm) => permission.UserHasPermission(player.UserIDString, perm);
-
         [Command("el")]
-        void cmdElectroLock(IPlayer iplayer, string command, string[] args)
+        void cmdElectroLock(IPlayer player, string command, string[] args)
         {
-            var player = iplayer.Object as BasePlayer;
-            if(!iplayer.HasPermission("electrolock.use")) { PrintMsgL(player, "notauthorized"); return; }
+            if(!player.HasPermission(permElectrolockUse)) { Message(player, "notauthorized"); return; }
             if(args.Length == 0)
             {
-                if(!userenabled.ContainsKey(player.userID))
+                if(!userenabled.ContainsKey(ulong.Parse(player.Id)))
                 {
-                    PrintMsgL(player, "disabled");
-                    PrintMsgL(player, "instructions");
+                    Message(player, "disabled");
+                    Message(player, "instructions");
                 }
-                else if(userenabled[player.userID] == false)
+                else if(userenabled[ulong.Parse(player.Id)] == false)
                 {
-                    PrintMsgL(player, "disabled");
-                    PrintMsgL(player, "instructions");
+                    Message(player, "disabled");
+                    Message(player, "instructions");
                 }
-                else if(userenabled[player.userID] == true)
+                else if(userenabled[ulong.Parse(player.Id)] == true)
                 {
-                    PrintMsgL(player, "enabled");
-                    PrintMsgL(player, "instructions");
+                    Message(player, "enabled");
+                    Message(player, "instructions");
                 }
                 return;
             }
             if(args[0] == "on" || args[0] == "1")
             {
-                if(!userenabled.ContainsKey(player.userID))
+                if(!userenabled.ContainsKey(ulong.Parse(player.Id)))
                 {
-                    userenabled.Add(player.userID, true);
+                    userenabled.Add(ulong.Parse(player.Id), true);
                 }
-                else if(userenabled[player.userID] == false)
+                else if(userenabled[ulong.Parse(player.Id)] == false)
                 {
-                    userenabled[player.userID] = true;
+                    userenabled[ulong.Parse(player.Id)] = true;
                 }
-                PrintMsgL(player, "enabled");
+                Message(player, "enabled");
             }
             else if(args[0] == "off" || args[0] == "0")
             {
-                if(!userenabled.ContainsKey(player.userID))
+                if(!userenabled.ContainsKey(ulong.Parse(player.Id)))
                 {
-                    userenabled.Add(player.userID, false);
+                    userenabled.Add(ulong.Parse(player.Id), false);
                 }
-                else if(userenabled[player.userID] == true)
+                else if(userenabled[ulong.Parse(player.Id)] == true)
                 {
-                    userenabled[player.userID] = false;
+                    userenabled[ulong.Parse(player.Id)] = false;
                 }
-                PrintMsgL(player, "disabled");
+                Message(player, "disabled");
             }
             SaveData();
         }
@@ -291,10 +292,9 @@ namespace Oxide.Plugins
         // Lock entity spawner
         private bool AddLock(BaseEntity eswitch)
         {
-            try
+            newlock = new BaseEntity();
+            if(newlock = GameManager.server.CreateEntity(codeLockPrefab, entitypos, entityrot, true))
             {
-                newlock = new BaseEntity();
-                newlock = GameManager.server.CreateEntity(codeLockPrefab, entitypos, entityrot, true);
                 newlock.transform.localEulerAngles = new Vector3(0, 90, 0);
                 newlock.transform.localPosition = new Vector3(0, 0.65f, 0);
                 newlock.SetParent(eswitch, 0);
@@ -310,16 +310,15 @@ namespace Oxide.Plugins
                 });
                 return true;
             }
-            catch
-            {
-                return false;
-            }
+            return false;
         }
 
         // Used to find the owner of a switch
         private object FindOwner(ulong playerID)
         {
+            if(playerID == null) return null;
             IPlayer iplayer = covalence.Players.FindPlayer(playerID.ToString());
+
             if(iplayer != null)
             {
                 return iplayer.Object as BasePlayer;
@@ -332,6 +331,7 @@ namespace Oxide.Plugins
 
         private bool IsOurSwitch(ulong switchid)
         {
+            if(switchid == null) return false;
             foreach(KeyValuePair<int, SwitchPair> switchdata in switchpairs)
             {
                 if(switchdata.Value.switchid == switchid)
@@ -348,6 +348,7 @@ namespace Oxide.Plugins
         // Check whether this switch has an associated lock, and whether or not it is locked
         private bool IsLocked(ulong switchid)
         {
+            if(switchid == null) return false;
             foreach(KeyValuePair<int, SwitchPair> switchdata in switchpairs)
             {
                 if(switchdata.Value.switchid == switchid)
