@@ -16,7 +16,7 @@ using Oxide.Core.Libraries.Covalence;
 
 namespace Oxide.Plugins
 {
-    [Info("Electro Lock", "RFC1920", "1.0.6")]
+    [Info("Electro Lock", "RFC1920", "1.0.7")]
     [Description("Lock electrical switches with a code lock")]
     class ElectroLock : RustPlugin
     {
@@ -43,24 +43,6 @@ namespace Oxide.Plugins
         #region Message
         private string Lang(string key, string id = null, params object[] args) => string.Format(lang.GetMessage(key, this, id), args);
         private void Message(IPlayer player, string key, params object[] args) => player.Reply(Lang(key, player.Id, args));
-
-        private string _(string msgId, BasePlayer player, params object[] args)
-        {
-            var msg = lang.GetMessage(msgId, this, player?.UserIDString);
-            return args.Length > 0 ? string.Format(msg, args) : msg;
-        }
-
-        private void PrintMsgL(BasePlayer player, string msgId, params object[] args)
-        {
-            if(player == null) return;
-            PrintMsg(player, _(msgId, player, args));
-        }
-
-        private void PrintMsg(BasePlayer player, string msg)
-        {
-            if(player == null) return;
-            SendReply(player, $"{msg}");
-        }
         #endregion
 
         #region init
@@ -87,7 +69,8 @@ namespace Oxide.Plugins
                 ["unlocked"] = "This ElectroLock is unlocked!",
                 ["disabled"] = "ElectroLock is disabled.",
                 ["enabled"] = "ElectroLock is enabled.",
-                ["owner"] = "ElectroLock owned by {0}."
+                ["owner"] = "ElectroLock owned by {0}.",
+                ["noswitch"] = "Could not find an ElectroLock in front of you."
             }, this);
         }
 
@@ -118,12 +101,8 @@ namespace Oxide.Plugins
         {
             if(eswitch != null)
             {
-                BasePlayer player = new BasePlayer();
-                try
-                {
-                    player = FindOwner(eswitch.OwnerID) as BasePlayer;
-                }
-                catch
+                BasePlayer player = FindOwner(eswitch.OwnerID);
+                if(player == null)
                 {
 #if DEBUG
                     Puts($"Could not find owner of this switch.");
@@ -143,7 +122,7 @@ namespace Oxide.Plugins
 #if DEBUG
                     Puts($"Player {player.displayName} has never enabled ElectroLock.");
 #endif
-                    PrintMsgL(player, "disabled");
+                    Message(player.IPlayer, "disabled");
                     return;
                 }
                 if(userenabled[player.userID] == false || userenabled[player.userID] == null)
@@ -151,7 +130,7 @@ namespace Oxide.Plugins
 #if DEBUG
                     Puts($"Player {player.displayName} has ElectroLock disabled.");
 #endif
-                    PrintMsgL(player, "disabled");
+                    Message(player.IPlayer, "disabled");
                     return;
                 }
 
@@ -160,12 +139,12 @@ namespace Oxide.Plugins
                     if(AddLock(eswitch))
                     {
                         switches.Add(eswitch.net.ID);
-                        PrintMsgL(player, "spawned");
+                        Message(player.IPlayer, "spawned");
                         SaveData();
                     }
                     else
                     {
-                        PrintMsgL(player, "failed");
+                        Message(player.IPlayer, "failed");
                     }
                 }
                 player = null;
@@ -184,7 +163,7 @@ namespace Oxide.Plugins
 #endif
                 if(IsLocked(eswitch.net.ID))
                 {
-                    PrintMsgL(player, "locked");
+                    Message(player.IPlayer, "locked");
                     return true;
                 }
             }
@@ -204,7 +183,7 @@ namespace Oxide.Plugins
 #if DEBUG
                     Puts("CanPickupEntity: player trying to pickup our locked switch!");
 #endif
-                    PrintMsgL(player, "locked");
+                    Message(player.IPlayer, "locked");
                     return false;
                 }
             }
@@ -225,7 +204,7 @@ namespace Oxide.Plugins
 #if DEBUG
                 Puts("CanPickupLock: player trying to remove lock from a locked switch!");
 #endif
-                PrintMsgL(player, "cannotdo");
+                Message(player.IPlayer, "cannotdo");
                 return false;
             }
             return null;
@@ -289,6 +268,23 @@ namespace Oxide.Plugins
                 }
                 Message(player, "disabled");
             }
+            else if(args[0] == "who" && player.HasPermission(permElectrolockAdmin))
+            {
+                RaycastHit hit;
+                BasePlayer basePlayer = player.Object as BasePlayer;
+                if(Physics.Raycast(basePlayer.eyes.HeadRay(), out hit, 2.2f))
+                {
+                    BaseEntity eswitch = hit.GetEntity();
+                    BasePlayer owner = FindOwner(eswitch.OwnerID);
+                    Message(player, "owner", owner.displayName);
+                    eswitch = null;
+                    owner = null;
+                }
+                else
+                {
+                    Message(player, "noswitch");
+                }
+            }
             SaveData();
         }
 
@@ -317,7 +313,7 @@ namespace Oxide.Plugins
         }
 
         // Used to find the owner of a switch
-        private object FindOwner(ulong playerID)
+        private BasePlayer FindOwner(ulong playerID)
         {
             if(playerID == null) return null;
             IPlayer iplayer = covalence.Players.FindPlayer(playerID.ToString());
