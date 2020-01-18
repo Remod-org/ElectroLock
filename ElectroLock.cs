@@ -1,4 +1,4 @@
-//#define DEBUG
+#define DEBUG
 using System;
 using System.Collections;
 using System.Collections.Generic;
@@ -16,7 +16,7 @@ using Oxide.Core.Libraries.Covalence;
 
 namespace Oxide.Plugins
 {
-    [Info("ElectroLock", "RFC1920", "1.0.2")]
+    [Info("ElectroLock", "RFC1920", "1.0.3")]
     [Description("Lock electrical switches")]
     class ElectroLock : RustPlugin
     {
@@ -192,14 +192,11 @@ namespace Oxide.Plugins
 
             BaseEntity myent = entity as BaseEntity;
 
-            if(myent.name.Contains("switch"))
+            if(myent.name.Contains("switch") && IsOurSwitch(myent.net.ID))
             {
-                if(myent.name.Contains("switch") && IsOurSwitch(myent.net.ID))
-                {
 #if DEBUG
-                    Puts("CanPickupEntity: player trying to pickup our locked switch!");
+                Puts("CanPickupEntity: player trying to pickup our locked switch!");
 #endif
-                }
             }
             return null;
         }
