@@ -16,7 +16,7 @@ using Oxide.Core.Libraries.Covalence;
 
 namespace Oxide.Plugins
 {
-    [Info("ElectroLock", "RFC1920", "1.0.0")]
+    [Info("ElectroLock", "RFC1920", "1.0.1")]
     [Description("Lock electrical switches")]
     class ElectroLock : RustPlugin
     {
@@ -232,6 +232,13 @@ namespace Oxide.Plugins
                 return false;
             }
             return null;
+        }
+
+        void OnNewSave(string strFilename)
+        {
+            // Wipe the dict of switch pairs.  But, player prefs are maintained.
+            switchpairs = new Dictionary<int,SwitchPair>();
+            SaveData();
         }
         #endregion
 
