@@ -16,7 +16,7 @@ using Oxide.Core.Libraries.Covalence;
 
 namespace Oxide.Plugins
 {
-    [Info("ElectroLock", "RFC1920", "1.0.4")]
+    [Info("Electro Lock", "RFC1920", "1.0.5")]
     [Description("Lock electrical switches with a code lock")]
     class ElectroLock : RustPlugin
     {
