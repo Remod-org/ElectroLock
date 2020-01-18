@@ -16,7 +16,7 @@ using Oxide.Core.Libraries.Covalence;
 
 namespace Oxide.Plugins
 {
-    [Info("ElectroLock", "RFC1920", "1.0.1")]
+    [Info("ElectroLock", "RFC1920", "1.0.2")]
     [Description("Lock electrical switches")]
     class ElectroLock : RustPlugin
     {
@@ -154,11 +154,6 @@ namespace Oxide.Plugins
 
                 if(eswitch)
                 {
-                    Vector3 spawnpos = eswitch.transform.position + new Vector3(0, 0.6f, 0);
-#if DEBUG
-                    Puts($"Found switch {eswitch.ShortPrefabName}, pos {eswitch.transform.position.ToString()}");
-                    Puts($"Spawning lock at {spawnpos.ToString()}");
-#endif
                     if(AddLock(eswitch))
                     {
                         switches.Add(eswitch.net.ID);
