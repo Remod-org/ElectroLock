@@ -16,7 +16,7 @@ using Oxide.Core.Libraries.Covalence;
 
 namespace Oxide.Plugins
 {
-    [Info("Electro Lock", "RFC1920", "1.0.5")]
+    [Info("Electro Lock", "RFC1920", "1.0.6")]
     [Description("Lock electrical switches with a code lock")]
     class ElectroLock : RustPlugin
     {
@@ -86,7 +86,8 @@ namespace Oxide.Plugins
                 ["locked"] = "This ElectroLock is locked!",
                 ["unlocked"] = "This ElectroLock is unlocked!",
                 ["disabled"] = "ElectroLock is disabled.",
-                ["enabled"] = "ElectroLock is enabled."
+                ["enabled"] = "ElectroLock is enabled.",
+                ["owner"] = "ElectroLock owned by {0}."
             }, this);
         }
 
@@ -243,19 +244,21 @@ namespace Oxide.Plugins
         void cmdElectroLock(IPlayer player, string command, string[] args)
         {
             if(!player.HasPermission(permElectrolockUse)) { Message(player, "notauthorized"); return; }
+            ulong playerID = ulong.Parse(player.Id);
+
             if(args.Length == 0)
             {
-                if(!userenabled.ContainsKey(ulong.Parse(player.Id)))
+                if(!userenabled.ContainsKey(playerID))
                 {
                     Message(player, "disabled");
                     Message(player, "instructions");
                 }
-                else if(userenabled[ulong.Parse(player.Id)] == false)
+                else if(userenabled[playerID] == false)
                 {
                     Message(player, "disabled");
                     Message(player, "instructions");
                 }
-                else if(userenabled[ulong.Parse(player.Id)] == true)
+                else if(userenabled[playerID] == true)
                 {
                     Message(player, "enabled");
                     Message(player, "instructions");
@@ -264,25 +267,25 @@ namespace Oxide.Plugins
             }
             if(args[0] == "on" || args[0] == "1")
             {
-                if(!userenabled.ContainsKey(ulong.Parse(player.Id)))
+                if(!userenabled.ContainsKey(playerID))
                 {
-                    userenabled.Add(ulong.Parse(player.Id), true);
+                    userenabled.Add(playerID, true);
                 }
-                else if(userenabled[ulong.Parse(player.Id)] == false)
+                else if(userenabled[playerID] == false)
                 {
-                    userenabled[ulong.Parse(player.Id)] = true;
+                    userenabled[playerID] = true;
                 }
                 Message(player, "enabled");
             }
             else if(args[0] == "off" || args[0] == "0")
             {
-                if(!userenabled.ContainsKey(ulong.Parse(player.Id)))
+                if(!userenabled.ContainsKey(playerID))
                 {
-                    userenabled.Add(ulong.Parse(player.Id), false);
+                    userenabled.Add(playerID, false);
                 }
-                else if(userenabled[ulong.Parse(player.Id)] == true)
+                else if(userenabled[playerID] == true)
                 {
-                    userenabled[ulong.Parse(player.Id)] = false;
+                    userenabled[playerID] = false;
                 }
                 Message(player, "disabled");
             }
