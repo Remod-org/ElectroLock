@@ -1,3 +1,4 @@
+![](https://i.imgur.com/Qs2wXkK.jpg)
 # ElectroLock
 Adds an associated code lock underneath a placed electrical switch.  This feature can be enabled or disabled to facilitate the placement of switches normally without the lock.  The lock code must be set and the lock locked to lock the switch.
 
