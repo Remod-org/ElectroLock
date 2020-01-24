@@ -16,8 +16,8 @@ using Oxide.Core.Libraries.Covalence;
 
 namespace Oxide.Plugins
 {
-    [Info("Electro Lock", "RFC1920", "1.0.7")]
-    [Description("Lock electrical switches with a code lock")]
+    [Info("Electro Lock", "RFC1920", "1.0.8")]
+    [Description("Lock electrical switches and generators with a code lock")]
     class ElectroLock : RustPlugin
     {
         #region vars
@@ -64,7 +64,9 @@ namespace Oxide.Plugins
                 ["notauthorized"] = "You don't have permission to use this command.",
                 ["instructions"] = "/el on to enable, /el off to disable.",
                 ["spawned"] = "ElectroLock spawned a new lockable switch!",
+                ["gspawned"] = "ElectroLock spawned a new lockable generator!",
                 ["failed"] = "ElectroLock failed to spawn a new lockable switch!",
+                ["gfailed"] = "ElectroLock failed to spawn a new lockable generator!",
                 ["locked"] = "This ElectroLock is locked!",
                 ["unlocked"] = "This ElectroLock is unlocked!",
                 ["disabled"] = "ElectroLock is disabled.",
@@ -97,6 +99,66 @@ namespace Oxide.Plugins
         #endregion
 
         #region Rust_Hooks
+        private void OnEntitySpawned(FuelGenerator eswitch)
+        {
+            if(eswitch != null)
+            {
+                BasePlayer player = FindOwner(eswitch.OwnerID);
+                if(player == null)
+                {
+#if DEBUG
+                    Puts($"Could not find owner of this generator.");
+#endif
+                    return;
+                }
+
+                if(!player.IPlayer.HasPermission(permElectrolockUse))
+                {
+#if DEBUG
+                    Puts($"Player {player.displayName} denied permission.");
+#endif
+                    return;
+                }
+                if(!userenabled.ContainsKey(player.userID))
+                {
+#if DEBUG
+                    Puts($"Player {player.displayName} has never enabled ElectroLock.");
+#endif
+                    Message(player.IPlayer, "disabled");
+                    return;
+                }
+                if(userenabled[player.userID] == false || userenabled[player.userID] == null)
+                {
+#if DEBUG
+                    Puts($"Player {player.displayName} has ElectroLock disabled.");
+#endif
+                    Message(player.IPlayer, "disabled");
+                    return;
+                }
+
+                if(eswitch)
+                {
+                    if(AddLock(eswitch, true))
+                    {
+                        switches.Add(eswitch.net.ID);
+                        Message(player.IPlayer, "gspawned");
+                        SaveData();
+#if DEBUG
+                        Puts($"Spawned generator with lock");
+#endif
+                    }
+                    else
+                    {
+#if DEBUG
+                        Puts($"Failed to spawn generator with lock");
+#endif
+                        Message(player.IPlayer, "gfailed");
+                    }
+                }
+                player = null;
+            }
+        }
+
         private void OnEntitySpawned(ElectricSwitch eswitch)
         {
             if(eswitch != null)
@@ -151,6 +213,25 @@ namespace Oxide.Plugins
             }
         }
 
+        private object OnSwitchToggle(FuelGenerator eswitch, BasePlayer player)
+        {
+            if(eswitch == null) return null;
+            if(player == null) return null;
+
+            if(switches.Contains(eswitch.net.ID))
+            {
+#if DEBUG
+                Puts("OnSwitchToggle called for one of our generators!");
+#endif
+                if(IsLocked(eswitch.net.ID))
+                {
+                    Message(player.IPlayer, "locked");
+                    return true;
+                }
+            }
+            return null;
+        }
+
         private object OnSwitchToggle(ElectricSwitch eswitch, BasePlayer player)
         {
             if(eswitch == null) return null;
@@ -185,6 +266,39 @@ namespace Oxide.Plugins
 #endif
                     Message(player.IPlayer, "locked");
                     return false;
+                }
+                else
+                {
+#if DEBUG
+                    Puts("CanPickupEntity: player picking up our unlocked switch!");
+#endif
+                    switches.Remove(myent.net.ID);
+                    int myswitch = switchpairs.FirstOrDefault(x => x.Value.switchid == myent.net.ID).Key;
+                    switchpairs.Remove(myswitch);
+                    SaveData();
+                    return null;
+                }
+            }
+            else if(myent.name.Contains("fuel_gen"))
+            {
+                if(IsLocked(myent.net.ID))
+                {
+#if DEBUG
+                    Puts("CanPickupEntity: player trying to pickup our locked generator!");
+#endif
+                    Message(player.IPlayer, "locked");
+                    return false;
+                }
+                else
+                {
+#if DEBUG
+                    Puts("CanPickupEntity: player picking up our unlocked generator!");
+#endif
+                    switches.Remove(myent.net.ID);
+                    int myswitch = switchpairs.FirstOrDefault(x => x.Value.switchid == myent.net.ID).Key;
+                    switchpairs.Remove(myswitch);
+                    SaveData();
+                    return null;
                 }
             }
             return null;
@@ -289,13 +403,21 @@ namespace Oxide.Plugins
         }
 
         // Lock entity spawner
-        private bool AddLock(BaseEntity eswitch)
+        private bool AddLock(BaseEntity eswitch, bool gen = false)
         {
             newlock = new BaseEntity();
             if(newlock = GameManager.server.CreateEntity(codeLockPrefab, entitypos, entityrot, true))
             {
-                newlock.transform.localEulerAngles = new Vector3(0, 90, 0);
-                newlock.transform.localPosition = new Vector3(0, 0.65f, 0);
+                if(gen)
+                {
+                    newlock.transform.localEulerAngles = new Vector3(0, 90, 90);
+                    newlock.transform.localPosition = new Vector3(0, 0.65f, 0.1f);
+                }
+                else
+                {
+                    newlock.transform.localEulerAngles = new Vector3(0, 90, 0);
+                    newlock.transform.localPosition = new Vector3(0, 0.65f, 0);
+                }
                 newlock.SetParent(eswitch, 0);
                 newlock?.Spawn();
                 newlock.OwnerID = eswitch.OwnerID;
