@@ -16,7 +16,7 @@ using Oxide.Core.Libraries.Covalence;
 
 namespace Oxide.Plugins
 {
-    [Info("Electro Lock", "RFC1920", "1.0.8")]
+    [Info("Electro Lock", "RFC1920", "1.0.9")]
     [Description("Lock electrical switches and generators with a code lock")]
     class ElectroLock : RustPlugin
     {
@@ -317,6 +317,14 @@ namespace Oxide.Plugins
             {
 #if DEBUG
                 Puts("CanPickupLock: player trying to remove lock from a locked switch!");
+#endif
+                Message(player.IPlayer, "cannotdo");
+                return false;
+            }
+            if(eswitch.name.Contains("fuel_gen") && IsOurSwitch(eswitch.net.ID))
+            {
+#if DEBUG
+                Puts("CanPickupLock: player trying to remove lock from a locked generator!");
 #endif
                 Message(player.IPlayer, "cannotdo");
                 return false;
