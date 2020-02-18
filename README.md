@@ -1,4 +1,7 @@
-# ElectroLock
+# ElectroLock (Remod original
+
+[Download](https://code.remod.org/ElectroLock.cs)
+
 Adds an associated code lock underneath a placed electrical switch or on a fuel generator.  This feature can be enabled or disabled to facilitate the placement of switches or generators normally without the lock.  The lock code must be set and the lock locked to lock the switch or generator.
 ![](https://i.imgur.com/Qs2wXkK.jpg)
 
