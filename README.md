@@ -1,4 +1,4 @@
-# ElectroLock (Remod original
+# ElectroLock (Remod original)
 
 [Download](https://code.remod.org/ElectroLock.cs)
 
