@@ -1,4 +1,4 @@
-//#define DEBUG
+#define DEBUG
 using System;
 using System.Collections;
 using System.Collections.Generic;
@@ -16,7 +16,7 @@ using Oxide.Core.Libraries.Covalence;
 
 namespace Oxide.Plugins
 {
-    [Info("Electro Lock", "RFC1920", "1.0.9")]
+    [Info("Electro Lock", "RFC1920", "1.1.0")]
     [Description("Lock electrical switches and generators with a code lock")]
     class ElectroLock : RustPlugin
     {
@@ -38,6 +38,9 @@ namespace Oxide.Plugins
             public ulong switchid;
             public ulong lockid;
         }
+
+        private bool g_configChanged;
+        private bool ownerBypass = false;
         #endregion
 
         #region Message
@@ -54,6 +57,40 @@ namespace Oxide.Plugins
             permission.RegisterPermission(permElectrolockAdmin, this);
 
             LoadData();
+        }
+
+        void Loaded() => LoadConfigValues();
+
+        protected override void LoadDefaultConfig() => Puts("New configuration file created.");
+
+        void LoadConfigValues()
+        {
+            ownerBypass = Convert.ToBoolean(GetConfigValue("Settings", "Owner can bypass lock", false));
+
+            if(g_configChanged)
+            {
+                Puts("Configuration file updated.");
+                SaveConfig();
+            }
+        }
+
+        object GetConfigValue(string category, string setting, object defaultValue)
+        {
+            Dictionary<string, object> data = Config[category] as Dictionary<string, object>;
+            object value;
+
+            if(data == null)
+            {
+                data = new Dictionary<string, object>();
+                Config[category] = data;
+                g_configChanged = true;
+            }
+
+            if(data.TryGetValue(setting, out value)) return value;
+            value = defaultValue;
+            data[setting] = value;
+            g_configChanged = true;
+            return value;
         }
 
         protected override void LoadDefaultMessages()
@@ -225,6 +262,13 @@ namespace Oxide.Plugins
 #endif
                 if(IsLocked(eswitch.net.ID))
                 {
+                    if(eswitch.OwnerID == player.userID && ownerBypass)
+                    {
+#if DEBUG
+                        Puts("OnSwitchToggle: Per config, owner can bypass");
+#endif
+                        return null;
+                    }
                     Message(player.IPlayer, "locked");
                     return true;
                 }
@@ -244,6 +288,13 @@ namespace Oxide.Plugins
 #endif
                 if(IsLocked(eswitch.net.ID))
                 {
+                    if(eswitch.OwnerID == player.userID && ownerBypass)
+                    {
+#if DEBUG
+                        Puts("OnSwitchToggle: Per config, owner can bypass");
+#endif
+                        return null;
+                    }
                     Message(player.IPlayer, "locked");
                     return true;
                 }
@@ -427,7 +478,7 @@ namespace Oxide.Plugins
                     newlock.transform.localPosition = new Vector3(0, 0.65f, 0);
                 }
                 newlock.SetParent(eswitch, 0);
-                newlock?.Spawn();
+                newlock.Spawn();
                 newlock.OwnerID = eswitch.OwnerID;
 
                 int id = UnityEngine.Random.Range(1, 99999999);

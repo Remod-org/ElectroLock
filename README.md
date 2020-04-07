@@ -1,6 +1,6 @@
 # ElectroLock (Remod original)
 
-[Download](https://code.remod.org/ElectroLock.cs)
+Current version 1.1.0 [Download](https://code.remod.org/ElectroLock.cs)
 
 Adds an associated code lock underneath a placed electrical switch or on a fuel generator.  This feature can be enabled or disabled to facilitate the placement of switches or generators normally without the lock.  The lock code must be set and the lock locked to lock the switch or generator.
 ![](https://i.imgur.com/Qs2wXkK.jpg)
@@ -11,12 +11,21 @@ Switches or generators are placed normally via the Rust user interface.  Be sure
 
 When the user attempts to pickup the lock, access will be denied.  However, they can pickup the switch or generator as they would normally, and the lock will also be removed.   A player cannot pickup or toggle a locked switch or generator.
 
-There is currently no configuration required for ElectroLock.  Data files are used to record placed switches and user enable status (one each).
+## Configuration
+
+```json
+{
+  "Settings": {
+    "Owner can bypass lock": false
+  }
+}
+```
+- `Owner can bypass lock` - If true, the owner of the locked switch or generator can open or toggle it without unlocking first.
 
 ## Permissions
 
 - `electrolock.use` -- Allows player to placed a locked switch
-- `electrolock.admin` --- Placeholder for future use
+- `electrolock.admin` -- Placeholder for future use
 
 ## Chat Commands
 
