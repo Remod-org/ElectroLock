@@ -1,4 +1,4 @@
-#define DEBUG
+//#define DEBUG
 using System;
 using System.Collections;
 using System.Collections.Generic;
@@ -16,7 +16,7 @@ using Oxide.Core.Libraries.Covalence;
 
 namespace Oxide.Plugins
 {
-    [Info("Electro Lock", "RFC1920", "1.1.0")]
+    [Info("Electro Lock", "RFC1920", "1.1.1")]
     [Description("Lock electrical switches and generators with a code lock")]
     class ElectroLock : RustPlugin
     {
@@ -200,6 +200,7 @@ namespace Oxide.Plugins
         {
             if(eswitch != null)
             {
+                if(eswitch.name.Contains("fluid")) return;
                 BasePlayer player = FindOwner(eswitch.OwnerID);
                 if(player == null)
                 {
