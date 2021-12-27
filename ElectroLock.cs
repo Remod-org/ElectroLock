@@ -74,7 +74,21 @@ namespace Oxide.Plugins
 
         private void Loaded() => LoadConfigVariables();
 
-        protected override void LoadDefaultConfig() => DoLog("New configuration file created.");
+        protected override void LoadDefaultConfig()
+        {
+            Puts("Creating new config file.");
+            ConfigData config = new ConfigData
+            {
+                Settings = new Settings()
+                {
+                    ownerBypass = false,
+                    useKeyLock = false,
+                    debug = false
+                },
+                Version = Version
+            };
+            SaveConfig(config);
+        }
 
         public class ConfigData
         {

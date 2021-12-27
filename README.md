@@ -1,8 +1,6 @@
 # ElectroLock (Remod original)
 
-Current version 1.1.0 [Download](https://code.remod.org/ElectroLock.cs)
-
-Adds an associated code lock underneath a placed electrical switch or on a fuel generator.  This feature can be enabled or disabled to facilitate the placement of switches or generators normally without the lock.  The lock code must be set and the lock locked to lock the switch or generator.
+Adds an associated code/key lock underneath a placed electrical switch or on a fuel generator.  This feature can be enabled or disabled to facilitate the placement of switches or generators normally without the lock.  The lock code must be set and the lock locked to lock the switch or generator.
 ![](https://i.imgur.com/Qs2wXkK.jpg)
 
 On first use, the player must enable first via the chat command /el on.  This setting will remain until the player enters /el off.
@@ -16,11 +14,20 @@ When the user attempts to pickup the lock, access will be denied.  However, they
 ```json
 {
   "Settings": {
-    "Owner can bypass lock": false
+    "Owner can bypass lock": false,
+    "Use key lock instead of code lock": false,
+    "debug": false
+  },
+  "Version": {
+    "Major": 1,
+    "Minor": 1,
+    "Patch": 3
   }
 }
 ```
-- `Owner can bypass lock` - If true, the owner of the locked switch or generator can open or toggle it without unlocking first.
+
+  - `Owner can bypass lock` - If true, the owner of the locked switch or generator can open or toggle it without unlocking first.
+  - `Use key lock instead of code lock` -- Spawns a key lock instead of a code lock
 
 ## Permissions
 
