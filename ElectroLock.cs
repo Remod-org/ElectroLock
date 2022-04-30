@@ -30,7 +30,7 @@ using Newtonsoft.Json;
 
 namespace Oxide.Plugins
 {
-    [Info("Electro Lock", "RFC1920", "1.1.3")]
+    [Info("Electro Lock", "RFC1920", "1.1.4")]
     [Description("Lock electrical switches and generators with a code lock")]
     internal class ElectroLock : RustPlugin
     {
@@ -42,6 +42,7 @@ namespace Oxide.Plugins
         public Vector3 entitypos;
         public BaseEntity newlock;
 
+        private bool startup;
         public Dictionary<ulong,bool> userenabled = new Dictionary<ulong,bool>();
         public Dictionary<int,SwitchPair> switchpairs = new Dictionary<int,SwitchPair>();
         public List<ulong> switches = new List<ulong>();
@@ -70,6 +71,11 @@ namespace Oxide.Plugins
             permission.RegisterPermission(permElectrolockAdmin, this);
 
             LoadData();
+        }
+
+        private void OnServerInitialized()
+        {
+            startup = true;
         }
 
         private void Loaded() => LoadConfigVariables();
@@ -173,6 +179,7 @@ namespace Oxide.Plugins
         #region Rust_Hooks
         private void OnEntitySpawned(FuelGenerator eswitch)
         {
+            if (!startup) return;
             if (eswitch != null)
             {
                 BasePlayer player = FindOwner(eswitch.OwnerID);
