@@ -30,7 +30,7 @@ using Newtonsoft.Json;
 
 namespace Oxide.Plugins
 {
-    [Info("Electro Lock", "RFC1920", "1.1.4")]
+    [Info("Electro Lock", "RFC1920", "1.1.5")]
     [Description("Lock electrical switches and generators with a code lock")]
     internal class ElectroLock : RustPlugin
     {
@@ -128,6 +128,7 @@ namespace Oxide.Plugins
 
         private void DoLog(string message)
         {
+            if (!startup) return;
             if (configData.Settings.debug)
             {
                 Interface.Oxide.LogInfo(message);
