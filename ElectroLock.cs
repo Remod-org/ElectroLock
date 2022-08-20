@@ -27,10 +27,11 @@ using Oxide.Core;
 using UnityEngine;
 using Oxide.Core.Libraries.Covalence;
 using Newtonsoft.Json;
+using Oxide.Core.Plugins;
 
 namespace Oxide.Plugins
 {
-    [Info("Electro Lock", "RFC1920", "1.1.5")]
+    [Info("Electro Lock", "RFC1920", "1.1.7")]
     [Description("Lock electrical switches and generators with a code lock")]
     internal class ElectroLock : RustPlugin
     {
@@ -48,6 +49,9 @@ namespace Oxide.Plugins
         public List<ulong> switches = new List<ulong>();
         private const string permElectrolockUse = "electrolock.use";
         private const string permElectrolockAdmin = "electrolock.admin";
+
+        [PluginReference]
+        private readonly Plugin ZoneManager, Friends, Clans, RustIO;
 
         public class SwitchPair
         {
@@ -89,6 +93,7 @@ namespace Oxide.Plugins
                 {
                     ownerBypass = false,
                     useKeyLock = false,
+                    //dropFuel = false,
                     debug = false
                 },
                 Version = Version
@@ -107,8 +112,20 @@ namespace Oxide.Plugins
             [JsonProperty(PropertyName = "Owner can bypass lock")]
             public bool ownerBypass;
 
+            //[JsonProperty(PropertyName = "Drop generator fuel on destroy")]
+            //public bool dropFuel;
+
             [JsonProperty(PropertyName = "Use key lock instead of code lock")]
             public bool useKeyLock;
+
+            [JsonProperty(PropertyName = "Use Friends Plugin")]
+            public bool useFriends;
+
+            [JsonProperty(PropertyName = "Use Clans Plugin")]
+            public bool useClans;
+
+            [JsonProperty(PropertyName = "Use Rust Teams")]
+            public bool useTeams;
 
             public bool debug;
         }
@@ -116,6 +133,11 @@ namespace Oxide.Plugins
         private void LoadConfigVariables()
         {
             configData = Config.ReadObject<ConfigData>();
+
+            //if (configData.Version < new VersionNumber(1, 1, 6))
+            //{
+            //    configData.Settings.dropFuel = false;
+            //}
 
             configData.Version = Version;
             SaveConfig(configData);
@@ -131,7 +153,7 @@ namespace Oxide.Plugins
             if (!startup) return;
             if (configData.Settings.debug)
             {
-                Interface.Oxide.LogInfo(message);
+                Interface.Oxide.LogInfo($"[{Name}] {message}");
             }
         }
 
@@ -210,6 +232,10 @@ namespace Oxide.Plugins
 
                 if (eswitch)
                 {
+                    // Check for other plugins that spawn locks
+                    object shouldaddlock = Interface.CallHook("ShouldAddLock", new object[] { eswitch });
+                    if (shouldaddlock != null && shouldaddlock is bool && (bool)shouldaddlock) return;
+
                     if (AddLock(eswitch, true))
                     {
                         switches.Add(eswitch.net.ID);
@@ -229,6 +255,7 @@ namespace Oxide.Plugins
 
         private void OnEntitySpawned(ElectricSwitch eswitch)
         {
+            if (!startup) return;
             if (eswitch != null)
             {
                 if (eswitch.name.Contains("fluid")) return;
@@ -259,6 +286,10 @@ namespace Oxide.Plugins
 
                 if (eswitch)
                 {
+                    // Check for other plugins that spawn locks
+                    object shouldaddlock = Interface.CallHook("ShouldAddLock", new object[] { eswitch });
+                    if (shouldaddlock != null && shouldaddlock is bool && (bool)shouldaddlock) return;
+
                     if (AddLock(eswitch))
                     {
                         switches.Add(eswitch.net.ID);
@@ -284,7 +315,7 @@ namespace Oxide.Plugins
                 DoLog("OnSwitchToggle called for one of our generators!");
                 if (IsLocked(eswitch.net.ID))
                 {
-                    if (eswitch.OwnerID == player.userID && configData.Settings.ownerBypass)
+                    if ((eswitch.OwnerID == player.userID || IsFriend(player.userID, eswitch.OwnerID)) && configData.Settings.ownerBypass)
                     {
                         DoLog("OnSwitchToggle: Per config, owner can bypass");
                         return null;
@@ -306,7 +337,7 @@ namespace Oxide.Plugins
                 DoLog("OnSwitchToggle called for one of our switches!");
                 if (IsLocked(eswitch.net.ID))
                 {
-                    if (eswitch.OwnerID == player.userID && configData.Settings.ownerBypass)
+                    if ((eswitch.OwnerID == player.userID || IsFriend(player.userID, eswitch.OwnerID)) && configData.Settings.ownerBypass)
                     {
                         DoLog("OnSwitchToggle: Per config, owner can bypass");
                         return null;
@@ -318,7 +349,32 @@ namespace Oxide.Plugins
             return null;
         }
 
-        // Check for our switch, currently only log
+        //private void OnEntityKill(FuelGenerator myent)
+        //{
+        //    DoLog("OnEntityKill: FuelGenerator");
+        //    if (IsOurSwitch(myent.net.ID) && IsLocked(myent.net.ID) && !configData.Settings.dropFuel)
+        //    {
+        //        DoLog("OnEntityKill: Emptying tank");
+        //        Item slot = myent.inventory.GetSlot(0);
+        //        slot.amount = 0;
+        //        slot.MarkDirty();
+        //    }
+        //}
+
+        private object CanLootEntity(BasePlayer player, FuelGenerator gen)
+        {
+            if (player == null || gen == null) return null;
+
+            if (IsOurSwitch(gen.net.ID) && IsLocked(gen.net.ID) && !configData.Settings.ownerBypass)
+            {
+                DoLog("CanLootEntity: player trying to loot our locked generator!");
+                Message(player.IPlayer, "locked");
+                return false;
+            }
+
+            return null;
+        }
+
         private object CanPickupEntity(BasePlayer player, BaseEntity myent)
         {
             if (myent == null) return null;
@@ -542,10 +598,44 @@ namespace Oxide.Plugins
                 {
                     uint mylockid =  Convert.ToUInt32(switchdata.Value.lockid);
                     BaseNetworkable bent = BaseNetworkable.serverEntities.Find(mylockid);
-                    BaseEntity lockent = bent as BaseEntity;
+                    BaseEntity lockent = bent as BaseLock;
                     if (lockent.IsLocked())
                     {
                         DoLog("Found an associated lock!");
+                        return true;
+                    }
+                }
+            }
+            return false;
+        }
+
+        private bool IsFriend(ulong playerid, ulong ownerid)
+        {
+            if (configData.Settings.useFriends && Friends != null)
+            {
+                object fr = Friends?.CallHook("AreFriends", playerid, ownerid);
+                if (fr != null && (bool)fr)
+                {
+                    return true;
+                }
+            }
+            if (configData.Settings.useClans && Clans != null)
+            {
+                string playerclan = (string)Clans?.CallHook("GetClanOf", playerid);
+                string ownerclan = (string)Clans?.CallHook("GetClanOf", ownerid);
+                if (playerclan != null && ownerclan != null && playerclan == ownerclan)
+                {
+                    return true;
+                }
+            }
+            if (configData.Settings.useTeams)
+            {
+                BasePlayer player = BasePlayer.FindByID(playerid);
+                if (player != null && player?.currentTeam != 0)
+                {
+                    RelationshipManager.PlayerTeam playerTeam = RelationshipManager.ServerInstance.FindTeam(player.currentTeam);
+                    if (playerTeam?.members.Contains(ownerid) == true)
+                    {
                         return true;
                     }
                 }
