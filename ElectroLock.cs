@@ -1,12 +1,10 @@
-#region License (GPL v3)
+#region License (GPL v2)
 /*
     DESCRIPTION
-    Copyright (c) 2020 RFC1920 <desolationoutpostpve@gmail.com>
+    Copyright (c) 2020-2023 RFC1920 <desolationoutpostpve@gmail.com>
 
     This program is free software; you can redistribute it and/or
-    modify it under the terms of the GNU General Public License
-    as published by the Free Software Foundation; either version 2
-    of the License, or (at your option) any later version.
+    modify it under the terms of the GNU General Public License v2.0.
 
     This program is distributed in the hope that it will be useful,
     but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -19,7 +17,7 @@
 
     Optionally you can also view the license at <http://www.gnu.org/licenses/>.
 */
-#endregion License Information (GPL v3)
+#endregion License Information (GPL v2)
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -31,7 +29,7 @@ using Oxide.Core.Plugins;
 
 namespace Oxide.Plugins
 {
-    [Info("Electro Lock", "RFC1920", "1.1.7")]
+    [Info("Electro Lock", "RFC1920", "1.1.8")]
     [Description("Lock electrical switches and generators with a code lock")]
     internal class ElectroLock : RustPlugin
     {
@@ -238,7 +236,7 @@ namespace Oxide.Plugins
 
                     if (AddLock(eswitch, true))
                     {
-                        switches.Add(eswitch.net.ID);
+                        switches.Add((uint)eswitch.net.ID.Value);
                         Message(player.IPlayer, "gspawned");
                         SaveData();
                         DoLog("Spawned generator with lock");
@@ -292,7 +290,7 @@ namespace Oxide.Plugins
 
                     if (AddLock(eswitch))
                     {
-                        switches.Add(eswitch.net.ID);
+                        switches.Add((uint)eswitch.net.ID.Value);
                         Message(player.IPlayer, "spawned");
                         SaveData();
                     }
@@ -310,10 +308,10 @@ namespace Oxide.Plugins
             if (eswitch == null) return null;
             if (player == null) return null;
 
-            if (switches.Contains(eswitch.net.ID))
+            if (switches.Contains((uint)eswitch.net.ID.Value))
             {
                 DoLog("OnSwitchToggle called for one of our generators!");
-                if (IsLocked(eswitch.net.ID))
+                if (IsLocked((uint)eswitch.net.ID.Value))
                 {
                     if ((eswitch.OwnerID == player.userID || IsFriend(player.userID, eswitch.OwnerID)) && configData.Settings.ownerBypass)
                     {
@@ -332,10 +330,10 @@ namespace Oxide.Plugins
             if (eswitch == null) return null;
             if (player == null) return null;
 
-            if (switches.Contains(eswitch.net.ID))
+            if (switches.Contains((uint)eswitch.net.ID.Value))
             {
                 DoLog("OnSwitchToggle called for one of our switches!");
-                if (IsLocked(eswitch.net.ID))
+                if (IsLocked((uint)eswitch.net.ID.Value))
                 {
                     if ((eswitch.OwnerID == player.userID || IsFriend(player.userID, eswitch.OwnerID)) && configData.Settings.ownerBypass)
                     {
@@ -365,7 +363,7 @@ namespace Oxide.Plugins
         {
             if (player == null || gen == null) return null;
 
-            if (IsOurSwitch(gen.net.ID) && IsLocked(gen.net.ID) && !configData.Settings.ownerBypass)
+            if (IsOurSwitch((uint)gen.net.ID.Value) && IsLocked((uint)gen.net.ID.Value) && !configData.Settings.ownerBypass)
             {
                 DoLog("CanLootEntity: player trying to loot our locked generator!");
                 Message(player.IPlayer, "locked");
@@ -380,9 +378,9 @@ namespace Oxide.Plugins
             if (myent == null) return null;
             if (player == null) return null;
 
-            if (myent.name.Contains("switch") && IsOurSwitch(myent.net.ID))
+            if (myent.name.Contains("switch") && IsOurSwitch((uint)myent.net.ID.Value))
             {
-                if (IsLocked(myent.net.ID))
+                if (IsLocked((uint)myent.net.ID.Value))
                 {
                     DoLog("CanPickupEntity: player trying to pickup our locked switch!");
                     Message(player.IPlayer, "locked");
@@ -391,8 +389,8 @@ namespace Oxide.Plugins
                 else
                 {
                     DoLog("CanPickupEntity: player picking up our unlocked switch!");
-                    switches.Remove(myent.net.ID);
-                    int myswitch = switchpairs.FirstOrDefault(x => x.Value.switchid == myent.net.ID).Key;
+                    switches.Remove((uint)myent.net.ID.Value);
+                    int myswitch = switchpairs.FirstOrDefault(x => x.Value.switchid == (uint)myent.net.ID.Value).Key;
                     switchpairs.Remove(myswitch);
                     SaveData();
                     return null;
@@ -400,7 +398,7 @@ namespace Oxide.Plugins
             }
             else if (myent.name.Contains("fuel_gen"))
             {
-                if (IsLocked(myent.net.ID))
+                if (IsLocked((uint)myent.net.ID.Value))
                 {
                     DoLog("CanPickupEntity: player trying to pickup our locked generator!");
                     Message(player.IPlayer, "locked");
@@ -409,8 +407,8 @@ namespace Oxide.Plugins
                 else
                 {
                     DoLog("CanPickupEntity: player picking up our unlocked generator!");
-                    switches.Remove(myent.net.ID);
-                    int myswitch = switchpairs.FirstOrDefault(x => x.Value.switchid == myent.net.ID).Key;
+                    switches.Remove((uint)myent.net.ID.Value);
+                    int myswitch = switchpairs.FirstOrDefault(x => x.Value.switchid == (uint)myent.net.ID.Value).Key;
                     switchpairs.Remove(myswitch);
                     SaveData();
                     return null;
@@ -428,13 +426,13 @@ namespace Oxide.Plugins
             BaseEntity eswitch = baseLock.GetParentEntity();
             if (eswitch == null) return null;
 
-            if (eswitch.name.Contains("switch") && IsOurSwitch(eswitch.net.ID))
+            if (eswitch.name.Contains("switch") && IsOurSwitch((uint)eswitch.net.ID.Value))
             {
                 DoLog("CanPickupLock: player trying to remove lock from a locked switch!");
                 Message(player.IPlayer, "cannotdo");
                 return false;
             }
-            if (eswitch.name.Contains("fuel_gen") && IsOurSwitch(eswitch.net.ID))
+            if (eswitch.name.Contains("fuel_gen") && IsOurSwitch((uint)eswitch.net.ID.Value))
             {
                 DoLog("CanPickupLock: player trying to remove lock from a locked generator!");
                 Message(player.IPlayer, "cannotdo");
@@ -550,8 +548,8 @@ namespace Oxide.Plugins
                 switchpairs.Add(id, new SwitchPair
                 {
                     owner = eswitch.OwnerID,
-                    switchid = eswitch.net.ID,
-                    lockid = newlock.net.ID
+                    switchid = (uint)eswitch.net.ID.Value,
+                    lockid = (uint)newlock.net.ID.Value
                 });
                 return true;
             }
@@ -597,7 +595,7 @@ namespace Oxide.Plugins
                 if (switchdata.Value.switchid == switchid)
                 {
                     uint mylockid =  Convert.ToUInt32(switchdata.Value.lockid);
-                    BaseNetworkable bent = BaseNetworkable.serverEntities.Find(mylockid);
+                    BaseNetworkable bent = BaseNetworkable.serverEntities.Find(new NetworkableId(mylockid));
                     BaseEntity lockent = bent as BaseLock;
                     if (lockent.IsLocked())
                     {
@@ -630,14 +628,10 @@ namespace Oxide.Plugins
             }
             if (configData.Settings.useTeams)
             {
-                BasePlayer player = BasePlayer.FindByID(playerid);
-                if (player != null && player?.currentTeam != 0)
+                RelationshipManager.PlayerTeam playerTeam = RelationshipManager.ServerInstance.FindPlayersTeam(playerid);
+                if (playerTeam?.members.Contains(ownerid) == true)
                 {
-                    RelationshipManager.PlayerTeam playerTeam = RelationshipManager.ServerInstance.FindTeam(player.currentTeam);
-                    if (playerTeam?.members.Contains(ownerid) == true)
-                    {
-                        return true;
-                    }
+                    return true;
                 }
             }
             return false;
